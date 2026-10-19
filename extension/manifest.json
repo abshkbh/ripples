@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Ripples",
+  "version": "0.1.2",
+  "description": "Local movement tracking, an event log, and better viewing controls for my.nanit.com.",
+  "permissions": ["storage"],
+  "content_scripts": [{
+    "matches": ["https://my.nanit.com/*"],
+    "js": ["core.js", "audio.js", "preferences.js", "styles.js", "view.js", "content.js"],
+    "run_at": "document_idle"
+  }]
+}

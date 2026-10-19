@@ -1,0 +1,11 @@
+{
+  "name": "ripples",
+  "version": "0.1.2",
+  "private": true,
+  "description": "A local activity dashboard for Nanit",
+  "scripts": {
+    "start": "node scripts/serve.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node scripts/check.cjs"
+  }
+}

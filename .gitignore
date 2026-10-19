@@ -1,0 +1,16 @@
+# Private live-feed captures and local development notes
+/artifacts/
+/private/
+/recordings/
+
+# Local activity exports, secrets, and machine files
+*.csv
+*.log
+.env
+.env.*
+.DS_Store
+
+# Development output
+node_modules/
+coverage/
+dist/
