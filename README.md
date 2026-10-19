@@ -24,6 +24,8 @@ Ripples reuses the video already playing in Nanit's web app. Nanit still deliver
 
 ## Install locally
 
+**Ask your agent to follow this section to install Ripples locally.**
+
 Loading the extension grants this code access to the Nanit page and its private video. Review the source first. Its only declared API permission is `storage`, and its content script only matches `https://my.nanit.com/*`.
 
 1. Open Chrome’s Extensions page (`chrome://extensions`).
