@@ -4,15 +4,15 @@ Small movements, made visible.
 
 **Developed and tested with the Nanit baby monitor’s live web feed.** You can use a coding agent to adapt Ripples for other baby monitors with a browser-accessible live feed; [AGENTS.md](AGENTS.md) covers setup and code structure. Other monitors require integration changes and testing.
 
+![Ripples: Small movements, made visible. A local activity dashboard for Nanit.](docs/images/ripples-launch.png)
+
+*Illustrated preview of Ripples. This graphic contains no real nursery footage.*
+
 An independent local activity dashboard for Nanit, unaffiliated with Nanit. This Chrome extension runs on `https://my.nanit.com/`. It uses the video already playing in your signed-in Nanit tab. No Nanit credentials, separate connection, subscription, API, external service, or build step is required.
 
 **Everything Ripples adds runs locally on your device.** Motion analysis happens in your browser, and activity history, notes, and viewing preferences stay in your current Chrome profile. Ripples has no backend, cloud analysis, analytics, or telemetry, and it does not upload frames, audio, movement scores, or notes. No AI service is used for motion detection.
 
 Ripples reuses the video already playing in Nanit's web app. Nanit still delivers that stream through its own service, so live viewing requires Nanit's connection; the local-only claim applies to Ripples' processing and storage.
-
-![Live Ripples activity dashboard with the baby's face covered by a sleepy-moon privacy sticker](docs/images/ripples-live.png)
-
-*Privacy-edited capture of the live v0.1.2 dashboard on 2026-10-19. The running installation still displays its earlier “Nanit Activity View” branding. The moon placeholder was added to this documentation image and is not a feature of the live viewer.*
 
 ## Features
 
@@ -82,7 +82,7 @@ Movement estimates describe changed pixels, not their cause. Rocking, shadows, a
 
 ## Privacy and limits
 
-- All Ripples image processing happens in the browser. Frames exist in memory only; the extension does not save or upload screenshots, audio, clips, or video. The README screenshot was captured separately and edited for documentation.
+- All Ripples image processing happens in the browser. Frames exist in memory only; the extension does not save or upload screenshots, audio, clips, or video. Documentation images are created separately from the extension; the launch graphic is an illustrated preview.
 - Extension-local storage holds preferences, up to 2 hours of movement samples, and at most 250 log entries from the past 24 hours. Expired records are pruned while running and on next startup. Chrome can clear this data by removing the extension. The preview has separate browser-local storage.
 - Tracking requires the Nanit tab to stay open and playing. Browsers can throttle background tabs or sleeping computers. Keep the tab visible for continuous observation; gaps are displayed as unknown.
 - A covered, rocking, shadowed, or moving scene can produce misleading motion readings. The app measures changed pixels, not why they changed.
@@ -90,6 +90,6 @@ Movement estimates describe changed pixels, not their cause. Rocking, shadows, a
 - No breathing, heart rate, oxygen, medical, or safety status is inferred. This is an activity and viewing tool.
 - The interface, sound control, movement estimates, and persistence have been checked against a generated feed and one live Nanit setup. These checks do not establish clinical accuracy or reliable continuous background monitoring. Compatibility can change when Nanit changes its web player.
 
-Unedited nursery captures and activity exports are excluded from this repository. Only the privacy-edited documentation screenshot is included. The original Nanit page still connects to Nanit’s services as usual.
+Unedited nursery captures and activity exports are excluded from this repository. The repository includes an illustrated launch graphic and a face-covered live documentation screenshot. The original Nanit page still connects to Nanit’s services as usual.
 
 The extension uses Chrome’s documented [content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) and [unpacked installation workflow](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world).
