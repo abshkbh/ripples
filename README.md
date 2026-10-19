@@ -2,6 +2,8 @@
 
 Small movements, made visible.
 
+**Developed and tested with the Nanit baby monitor’s live web feed.** You can use a coding agent to adapt Ripples for other baby monitors with a browser-accessible live feed; [AGENTS.md](AGENTS.md) covers setup and code structure. Other monitors require integration changes and testing.
+
 An independent local activity dashboard for Nanit, unaffiliated with Nanit. This Chrome extension runs on `https://my.nanit.com/`. It uses the video already playing in your signed-in Nanit tab. No Nanit credentials, separate connection, subscription, API, external service, or build step is required.
 
 **Everything Ripples adds runs locally on your device.** Motion analysis happens in your browser, and activity history, notes, and viewing preferences stay in your current Chrome profile. Ripples has no backend, cloud analysis, analytics, or telemetry, and it does not upload frames, audio, movement scores, or notes. No AI service is used for motion detection.
