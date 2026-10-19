@@ -4,6 +4,14 @@ Small movements, made visible.
 
 An independent local activity dashboard for Nanit, unaffiliated with Nanit. This Chrome extension runs on `https://my.nanit.com/`. It uses the video already playing in your signed-in Nanit tab. No Nanit credentials, separate connection, subscription, API, external service, or build step is required.
 
+**Everything Ripples adds runs locally on your device.** Motion analysis happens in your browser, and activity history, notes, and viewing preferences stay in your current Chrome profile. Ripples has no backend, cloud analysis, analytics, or telemetry, and it does not upload frames, audio, movement scores, or notes. No AI service is used for motion detection.
+
+Ripples reuses the video already playing in Nanit's web app. Nanit still delivers that stream through its own service, so live viewing requires Nanit's connection; the local-only claim applies to Ripples' processing and storage.
+
+![Live Ripples activity dashboard with the baby's face covered by a sleepy-moon privacy sticker](docs/images/ripples-live.png)
+
+*Privacy-edited capture of the live v0.1.2 dashboard on 2026-10-19. The running installation still displays its earlier “Nanit Activity View” branding. The moon placeholder was added to this documentation image and is not a feature of the live viewer.*
+
 ## Features
 
 - **Live activity:** little movement, movement detected, sustained movement, calibration, and explicit unavailable states. A quiet stretch is observed stillness, not confirmed sleep.
@@ -46,15 +54,31 @@ npm start
 
 Open `http://127.0.0.1:4317`. The preview runs the same core and interface against a generated canvas video, clearly labeled **Simulated feed**. The test controls can generate motion, change lighting, interrupt frames, and replace the video. It contains no real nursery video or real activity data. The preview server binds only to localhost.
 
-## How detection works
+## How motion detection works
 
-Frames from the selected region are downsampled to 160×90 pixels, at up to five samples per second. A median brightness-shift correction suppresses uniform exposure changes; the fraction of pixels with sufficiently large luminance changes produces a motion score. Smoothing, separate start/stop thresholds, and minimum durations suppress brief spikes. This is image-difference detection, not a trained sleep or person-recognition model. Sensitivity is adjustable.
+Ripples measures changes between video frames inside the tracking area you select. It uses a small image-difference algorithm in `extension/core.js`; it does not send the video to a model or recognize people or actions.
 
-No frames for five seconds, low-detail images, a sampling gap over 1.8 seconds, a source replacement, region changes, pauses, and visibility changes reset the relevant estimates. Returning to the page recalibrates. A video source replacement clears the tracking area to avoid silently applying it to a different camera. New frame delivery is not proof that the scene itself is fresh: an upstream camera could repeat frozen frames.
+1. **Sample the selected area.** Up to five times per second, the browser crops that area from the existing video, resizes it to 160×90 pixels, and converts it to grayscale. This work happens in memory.
+2. **Correct for overall brightness changes.** Compare each pixel with the previous sample and subtract the median brightness shift. This reduces false movement from uniform exposure changes, although shadows and uneven lighting can still affect the result.
+3. **Count changed pixels.** A pixel counts as changed when its corrected brightness difference exceeds the sensitivity threshold. The raw score is `changed pixels ÷ 14,400 × 100`. The displayed score is smoothed by combining 50% of the previous score with 50% of the new score. It is a percentage of sampled pixels that changed, not a confidence score or a physical movement measurement.
+4. **Apply timing rules.** Tracking begins with about three seconds of calibration. A movement burst starts when the smoothed score stays at or above the start threshold for at least 0.6 seconds. A burst that continues for six seconds becomes **Sustained movement**. The burst settles after the score stays at or below the lower stop threshold for 2.5 seconds. These separate thresholds and durations reduce flickering states and brief noise spikes.
+5. **Build the local history.** Ripples records movement starts and settling in the log, and keeps at most one timeline sample per second. Only scores, timestamps, event text, and preferences are saved; the sampled images are not retained as history.
+
+| Sensitivity | Pixel brightness difference* | Movement starts at | Settles at or below |
+| --- | --- | --- | --- |
+| Low | More than 18 | 3.5% | 1.2% |
+| Normal (default) | More than 12 | 2.0% | 0.65% |
+| High | More than 8 | 1.0% | 0.35% |
+
+*Brightness is measured on a 0–255 grayscale after the overall brightness correction. Start and stop thresholds use the smoothed score and timing rules above.*
+
+Very dark, washed-out, or low-detail images become **unclear**, rather than quiet. A sampling gap longer than 1.8 seconds resets tracking; five seconds without a new frame makes the feed unavailable. Pauses, visibility changes, region changes, and source changes also reset the relevant estimates. Missing intervals stay gaps in the timeline. A replacement source or changed camera dimensions clears the tracking area and dependent framing so the previous selection is not silently applied to a different view.
+
+Movement estimates describe changed pixels, not their cause. Rocking, shadows, a caregiver entering the area, or a blanket moving can all contribute. Stillness does not confirm sleep or breathing, and new frames do not prove the camera scene is current: an upstream source could repeat frozen images.
 
 ## Privacy and limits
 
-- All image processing happens in the browser. Frames exist in memory only; no screenshots, audio, clips, or video are saved or uploaded.
+- All Ripples image processing happens in the browser. Frames exist in memory only; the extension does not save or upload screenshots, audio, clips, or video. The README screenshot was captured separately and edited for documentation.
 - Extension-local storage holds preferences, up to 2 hours of movement samples, and at most 250 log entries from the past 24 hours. Expired records are pruned while running and on next startup. Chrome can clear this data by removing the extension. The preview has separate browser-local storage.
 - Tracking requires the Nanit tab to stay open and playing. Browsers can throttle background tabs or sleeping computers. Keep the tab visible for continuous observation; gaps are displayed as unknown.
 - A covered, rocking, shadowed, or moving scene can produce misleading motion readings. The app measures changed pixels, not why they changed.
@@ -62,6 +86,6 @@ No frames for five seconds, low-detail images, a sampling gap over 1.8 seconds, 
 - No breathing, heart rate, oxygen, medical, or safety status is inferred. This is an activity and viewing tool.
 - The interface, sound control, movement estimates, and persistence have been checked against a generated feed and one live Nanit setup. These checks do not establish clinical accuracy or reliable continuous background monitoring. Compatibility can change when Nanit changes its web player.
 
-Private development captures and activity exports are excluded from this repository. The original Nanit page still connects to Nanit’s services as usual.
+Unedited nursery captures and activity exports are excluded from this repository. Only the privacy-edited documentation screenshot is included. The original Nanit page still connects to Nanit’s services as usual.
 
 The extension uses Chrome’s documented [content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts) and [unpacked installation workflow](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world).
