@@ -25,6 +25,9 @@
       expanded: raw.expanded === true && raw.closed !== true,
       // Null preserves the original player's choice for older installations.
       soundEnabled: typeof raw.soundEnabled === 'boolean' ? raw.soundEnabled : null,
+      quietAlertEnabled: raw.quietAlertEnabled === true,
+      quietAlertSeconds: [30, 60, 120, 300, 600, 900].includes(raw.quietAlertSeconds) ? raw.quietAlertSeconds : 120,
+      quietAlertSound: raw.quietAlertSound !== false,
     };
   }
 

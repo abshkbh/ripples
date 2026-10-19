@@ -66,10 +66,12 @@
           <footer class="footnote"><span>Activity describes visible movement. It does not confirm sleep or breathing.</span><span id="session-start">Current session</span></footer>
         </div><aside class="sidebar" aria-label="Activity and event log">
           <section class="card activity-card" id="activity-card" data-state="offline" aria-label="Live activity"><div class="card-kicker"><span>Right now</span><span id="quality">Waiting</span></div><div class="activity-icon">${svg('moon')}</div><h2 class="activity-title" id="activity-title" aria-live="polite">Getting ready</h2><p class="activity-detail" id="activity-detail">Waiting for a live video frame.</p><div class="meter" role="meter" aria-label="Changed pixels in tracking area" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="motion-meter"><div class="meter-fill" id="meter-fill"></div></div><div class="meter-label"><span>Movement intensity</span><span id="score">—</span></div><div class="activity-stats"><div><div class="stat-value" id="quiet-time">—</div><div class="stat-label">Current quiet stretch</div></div><div><div class="stat-value" id="burst-count">0</div><div class="stat-label">Movement bursts</div></div></div></section>
+          <section class="card reminder-card" aria-label="Quiet reminder settings"><div class="log-header"><h2>Quiet reminder</h2><button id="quiet-enable" class="small-button" aria-pressed="false">Turn on</button></div><div class="settings-row"><label for="quiet-delay">After little movement for</label><select id="quiet-delay"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120" selected>2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option><option value="900">15 minutes</option></select></div><div class="settings-row"><span>Chime</span><button id="quiet-sound" class="small-button" aria-pressed="true">On</button></div><p id="quiet-status" class="reminder-status">Reminder is off.</p><div class="reminder-actions"><button id="quiet-test" class="small-button">Test reminder</button><button id="quiet-arm" class="small-button" hidden>Enable chime</button></div><p id="quiet-audio-status" class="help-copy"></p><p class="help-copy">Counts only fresh observations while this tab is visible. Gaps and pauses restart the timer. This does not assess breathing or wellbeing.</p></section>
           <section class="card" aria-label="Automatic event log"><div class="log-header"><h2>Activity log</h2><button id="export" class="small-button">Export CSV</button></div><div class="subtitle" style="margin-bottom:16px">Automatic events · most recent first</div><ol class="events" id="events"></ol><div class="empty-log" id="empty-log">Movement events will appear here once tracking starts.</div><form id="note-form" class="note-form"><input id="note" type="text" maxlength="200" placeholder="Add a note…" aria-label="Event note"><button type="submit">Add</button></form><div class="help-copy">Notes stay on this device. Events are retained for 24 hours, up to 250 entries.</div></section>
           <section class="card" aria-label="Tracking settings"><div class="settings-row"><label for="sensitivity">Movement sensitivity</label><select id="sensitivity"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option></select></div><div class="settings-row"><span>Observation</span><button id="pause" class="small-button" aria-pressed="false">Pause tracking</button></div><p class="help-copy">Patterns, shadows, and rocking can affect motion estimates. Keep this tab visible for continuous observation.</p><p class="help-copy privacy">Video frames stay in memory. Only event text, movement samples, and your settings are saved locally.</p></section>
         </aside></main>
-      </div><button class="open-button" id="open" hidden><span>☾</span> Ripples activity view</button><div id="toast" class="toast" role="status" hidden></div>`;
+      </div><button class="open-button" id="open" hidden><span>☾</span> Ripples activity view</button><div id="toast" class="toast" role="status" hidden></div>
+      <section id="quiet-banner" class="quiet-banner" role="alert" aria-atomic="true" hidden><strong id="quiet-banner-title">Quiet reminder</strong><p id="quiet-banner-detail"></p><div class="reminder-actions"><button id="quiet-review">Review live view</button><button id="quiet-dismiss">Dismiss</button></div></section>`;
 
     const $ = (id) => root.getElementById(id);
     const app = root.querySelector('.app');
@@ -82,6 +84,8 @@
     sampleCanvas.width = 160; sampleCanvas.height = 90;
     let sampleContext = sampleCanvas.getContext('2d', { willReadFrequently: true });
     const tracker = new core.ActivityTracker();
+    const reminder = new scope.NanitActivityAlerts.QuietReminder();
+    const chime = scope.NanitActivityAlerts.createChime();
     const started = Date.now();
     let source = null, callbackId = null, sourceWidth = 0, sourceHeight = 0;
     let lastFrame = 0, sourceAttachedAt = Date.now(), lastMediaTime = -1, lastSample = 0, lastBucket = 0, lastTick = 0;
@@ -93,6 +97,7 @@
     let savedDimensions = null;
     let audioBusy = false;
     let soundEnabled = null, audioRestored = false, audioNeedsClick = false;
+    let quietAlertEnabled = false, quietAlertSeconds = 120, quietAlertSound = true, quietTestActive = false;
     const storageKey = demo ? 'nanit-activity-demo-v1' : 'nanit-activity-v1';
     const preferencesKey = `${storageKey}-preferences`;
     const storage = !demo && scope.chrome?.storage?.local ? {
@@ -123,7 +128,8 @@
     }
     function currentPreferences() {
       return scope.NanitActivityPreferences.snapshot({ region, dimensions: savedDimensions, rotation, zoom,
-        focused, pan, sensitivity: tracker.sensitivity, windowMinutes, paused, closed, expanded, soundEnabled });
+        focused, pan, sensitivity: tracker.sensitivity, windowMinutes, paused, closed, expanded, soundEnabled,
+        quietAlertEnabled, quietAlertSeconds, quietAlertSound });
     }
     function savePreferences() {
       if (!booted) return;
@@ -159,7 +165,49 @@
     }
     function resetTracking(reason, log = true) {
       tracker.reset(); result = null; lastSample = 0;
+      reminder.reset(); quietTestActive = false; updateQuietControls(Date.now());
       if (log) addEvent('settings', reason, 'Estimates restart with a 3-second calibration.');
+    }
+    function updateQuietControls(now) {
+      reminder.expire(now);
+      const status = reminder.snapshot();
+      $('quiet-enable').textContent = quietAlertEnabled ? 'Turn off' : 'Turn on';
+      $('quiet-enable').setAttribute('aria-pressed', String(quietAlertEnabled));
+      $('quiet-delay').value = String(quietAlertSeconds);
+      $('quiet-sound').textContent = quietAlertSound ? 'On' : 'Off';
+      $('quiet-sound').setAttribute('aria-pressed', String(quietAlertSound));
+      let text = 'Reminder is off.';
+      if (quietAlertEnabled) {
+        if (document.hidden) text = 'Paused while this tab is hidden.';
+        else if (paused) text = 'Tracking paused — timer has restarted.';
+        else if (!region) text = 'Select a tracking area to start the timer.';
+        else if (blocked || result?.state === 'unclear') text = 'Analysis unavailable — timer has restarted.';
+        else if (!lastFrame || now - lastFrame > 1800) text = 'Waiting for fresh observations.';
+        else if (!result || result.state === 'calibrating') text = 'Waiting for calibration.';
+        else if (status.fired) text = status.active ? 'Quiet reminder shown.' : 'Dismissed — movement will rearm the reminder.';
+        else if (status.observing) text = `Quiet for ${duration(status.quietMs)} of ${duration(quietAlertSeconds * 1000)}.`;
+        else text = 'Movement detected — waiting for a quiet stretch.';
+      }
+      $('quiet-status').textContent = text;
+      $('quiet-audio-status').textContent = !quietAlertSound ? 'Chime is off.' : chime.ready() ? 'Chime is ready in this tab.' : 'Click Test reminder or Enable chime to allow sound in this tab.';
+      $('quiet-arm').hidden = !quietAlertEnabled || !quietAlertSound || chime.ready();
+      const banner = $('quiet-banner');
+      const parent = (root.fullscreenElement || document.fullscreenElement) === viewer ? viewer : root;
+      if (banner.parentNode !== parent) parent.append(banner);
+      banner.hidden = !status.active && !quietTestActive;
+    }
+    async function armQuietChime() {
+      try { await chime.arm(); }
+      catch { toast('Chime could not be enabled. The on-screen reminder still works. Try Test reminder.'); }
+      updateQuietControls(Date.now());
+    }
+    function showQuietReminder(test = false) {
+      quietTestActive = test;
+      $('quiet-banner-title').textContent = test ? 'Test reminder' : `Little movement observed for ${duration(quietAlertSeconds * 1000)}`;
+      $('quiet-banner-detail').textContent = test ? 'This is a test of the on-screen reminder. No quiet threshold was reached.' : 'Review the live video. This reminder does not assess breathing or wellbeing.';
+      addEvent('reminder', test ? 'Quiet reminder tested' : 'Quiet reminder', test ? 'Manual test; no activity condition was inferred.' : `Little movement was continuously observed for ${duration(quietAlertSeconds * 1000)}. Review the live video.`);
+      if (!test && quietAlertSound && !chime.play()) $('quiet-banner-detail').textContent += ' Chime was unavailable; enable it from the reminder settings.';
+      updateQuietControls(Date.now());
     }
     function sourcePoint(event) {
       if (!transform || !sourceWidth) return null;
@@ -197,14 +245,10 @@
       $('sound-label').textContent = audioBusy ? 'Enabling…' : audio.enabled ? 'Sound on' : audioNeedsClick ? 'Enable sound' : audio.paused && source ? 'Sound paused' : 'Sound off';
       $('sound-icon').innerHTML = svg(audio.enabled ? 'sound' : 'muted');
     }
-    async function restoreSoundPreference() {
+    function restoreSoundPreference() {
       if (audioRestored || audioBusy || !scope.NanitActivityAudio.state(source).available) return;
       audioRestored = true;
-      if (soundEnabled === null) return;
-      audioBusy = true;
-      try { await scope.NanitActivityAudio.setSound(source, soundEnabled); }
-      catch { audioNeedsClick = soundEnabled === true; }
-      finally { audioBusy = false; updateSoundControls(); }
+      audioNeedsClick = scope.NanitActivityAudio.restorePreference(source, soundEnabled).needsClick;
     }
     function restoreViewMode() {
       app.hidden = closed; $('open').hidden = !closed;
@@ -260,6 +304,8 @@
         for (let i = 0, p = 0; i < rgba.length; i += 4, p++) gray[p] = Math.round(rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114);
         const priorState = result?.state;
         result = tracker.update(gray, time);
+        if (reminder.observe(result.state, time)) showQuietReminder();
+        updateQuietControls(time);
         if (result.state === 'unclear' && priorState !== 'unclear') addEvent('gap', 'View became unclear', 'There is too little image detail for a movement estimate.');
         if (result.gap && knownLive && !gapOpen) {
           addEvent('gap', 'Observation interrupted', 'A sampling gap occurred. Quiet time has restarted.');
@@ -361,6 +407,7 @@
     function updateStatus(now) {
       restoreSoundPreference();
       updateSoundControls();
+      updateQuietControls(now);
       const age = lastFrame ? now - lastFrame : Infinity;
       const live = source && age < 5000;
       $('viewer-empty').hidden = !!lastFrame;
@@ -444,12 +491,41 @@
       expanded = true; $('exit-expanded').hidden = false; needsDraw = true; savePreferences();
     });
     $('exit-expanded').addEventListener('click', exitExpanded);
-    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && !viewer.classList.contains('theatre')) { expanded = false; $('exit-expanded').hidden = true; savePreferences(); } needsDraw = true; });
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && !viewer.classList.contains('theatre')) { expanded = false; $('exit-expanded').hidden = true; savePreferences(); } needsDraw = true; updateQuietControls(Date.now()); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && viewer.classList.contains('theatre')) exitExpanded(); });
     $('sensitivity').addEventListener('change', () => { tracker.sensitivity = $('sensitivity').value; resetTracking('Movement sensitivity changed'); savePreferences(); });
     $('pause').addEventListener('click', () => { paused = !paused; updateControls(); resetTracking('', false); addEvent('settings', paused ? 'Tracking paused' : 'Tracking resumed', paused ? 'No movement estimates are recorded while paused.' : 'Calibration starts with the next video frames.'); savePreferences(); updateStatus(Date.now()); });
     $('back').addEventListener('click', () => { closed = true; expanded = false; restoreViewMode(); savePreferences(); $('open').focus(); if (demo) toast('Preview minimized. Click Ripples activity view to reopen.'); });
     $('open').addEventListener('click', () => { closed = false; restoreViewMode(); savePreferences(); $('back').focus(); });
+    $('quiet-enable').addEventListener('click', () => {
+      quietAlertEnabled = !quietAlertEnabled; quietTestActive = false;
+      reminder.configure(quietAlertEnabled, quietAlertSeconds); savePreferences(); updateQuietControls(Date.now());
+      if (quietAlertEnabled && quietAlertSound) armQuietChime();
+    });
+    $('quiet-delay').addEventListener('change', () => {
+      quietAlertSeconds = Number($('quiet-delay').value); quietTestActive = false;
+      reminder.configure(quietAlertEnabled, quietAlertSeconds); savePreferences(); updateQuietControls(Date.now());
+    });
+    $('quiet-sound').addEventListener('click', () => {
+      quietAlertSound = !quietAlertSound; savePreferences(); updateQuietControls(Date.now());
+      if (quietAlertSound) armQuietChime();
+    });
+    $('quiet-arm').addEventListener('click', armQuietChime);
+    $('quiet-test').addEventListener('click', async () => {
+      showQuietReminder(true);
+      if (quietAlertSound) {
+        await armQuietChime();
+        if (!chime.play()) toast('The test message is visible, but the chime could not play.');
+      }
+      updateQuietControls(Date.now());
+    });
+    $('quiet-dismiss').addEventListener('click', () => {
+      quietTestActive = false; reminder.dismiss(); updateQuietControls(Date.now());
+      (document.fullscreenElement ? canvas : closed ? $('open') : $('quiet-test')).focus();
+    });
+    $('quiet-review').addEventListener('click', () => {
+      closed = false; exitExpanded(); restoreViewMode(); savePreferences(); canvas.focus();
+    });
     $('note-form').addEventListener('submit', (event) => { event.preventDefault(); const text = $('note').value.trim(); if (!text) return; addEvent('note', 'Your note', text); $('note').value = ''; toast('Note saved on this device.'); });
     $('export').addEventListener('click', () => {
       const blob = new Blob(['\uFEFF' + core.csv(events)], { type: 'text/csv;charset=utf-8' });
@@ -499,6 +575,7 @@
     }));
     document.addEventListener('visibilitychange', () => {
       savePreferences();
+      reminder.reset(); quietTestActive = false; updateQuietControls(Date.now());
       if (document.hidden && knownLive) { gapOpen = true; resetTracking('', false); addEvent('gap', 'Tab left foreground', 'Continuous observation may pause in a background tab.'); }
       else if (!document.hidden) { resetTracking('', false); needsDraw = true; }
     });
@@ -518,7 +595,9 @@
         focused = prefs.focused; pan = prefs.pan; tracker.sensitivity = prefs.sensitivity;
         windowMinutes = prefs.windowMinutes; paused = prefs.paused; closed = prefs.closed;
         expanded = prefs.expanded; soundEnabled = prefs.soundEnabled;
+        quietAlertEnabled = prefs.quietAlertEnabled; quietAlertSeconds = prefs.quietAlertSeconds; quietAlertSound = prefs.quietAlertSound;
       } catch { toast('Saved activity could not be loaded. Starting a fresh session.'); }
+      reminder.configure(quietAlertEnabled, quietAlertSeconds); updateQuietControls(Date.now());
       prune(); renderEvents(); booted = true; $('sensitivity').value = tracker.sensitivity;
       $('focus').disabled = !region; updateControls(); restoreViewMode(); savePreferences();
       $('session-start').textContent = `Session started ${clock(started)}`;

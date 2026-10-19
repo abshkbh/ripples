@@ -55,8 +55,9 @@ Use **Back to Nanit** to show the original page; the floating button reopens Rip
 | `extension/manifest.json` | MV3 metadata, the `storage` permission, Nanit URL match, and content-script load order. |
 | `extension/content.js` | Live-page entry point; checks the origin and calls `NanitActivityView.mount({ demo: false })`. |
 | `extension/core.js` | Frame differences, activity state transitions, sensitivity profiles, view transforms, inverse coordinate mapping, region normalization, and safe CSV generation. |
-| `extension/audio.js` | Reads and changes sound on the existing media element, preserving video playback and handling rejected playback. |
+| `extension/audio.js` | Reads and changes sound on the existing media element, preserves playback, and restores sound preferences without attempting automatic unmute. |
 | `extension/preferences.js` | Normalizes and snapshots saved settings, clamps values, and supplies defaults for older data. |
+| `extension/alerts.js` | Continuous quiet-observation timer, one reminder per quiet stretch, and a user-armed local Web Audio chime. |
 | `extension/styles.js` | Dashboard CSS as the `NanitActivityStyles` string. |
 | `extension/view.js` | Shared dashboard: Shadow DOM, video discovery, canvas rendering, sampling, timeline, log, interactions, and storage. |
 | `demo/index.html` | Preview page; loads the same extension modules and the demo fixture. |
@@ -67,6 +68,7 @@ Use **Back to Nanit** to show the original page; the floating button reopens Rip
 | `tests/core.test.cjs` | Movement state transitions, gaps, exposure changes, geometry, and CSV safety. |
 | `tests/audio.test.cjs` | Mute/unmute, volume, playback, unavailable media, and rejected playback. |
 | `tests/preferences.test.cjs` | Preference round trips, rendered framing, legacy defaults, invalid data, and snapshot independence. |
+| `tests/alerts.test.cjs` | Quiet thresholds, rearming, stale observations, clock changes, and unavailable or blocked chimes. |
 | `package.json` | Project metadata and npm commands; keep `private: true` to prevent accidental npm publication. |
 
 ### Runtime flow
@@ -74,10 +76,10 @@ Use **Back to Nanit** to show the original page; the floating button reopens Rip
 The manifest loads scripts in this order:
 
 ```text
-core.js -> audio.js -> preferences.js -> styles.js -> view.js -> content.js
+core.js -> audio.js -> preferences.js -> alerts.js -> styles.js -> view.js -> content.js
 ```
 
-The shared modules expose the existing `NanitActivity*` globals. `core.js`, `audio.js`, and `preferences.js` also export through CommonJS for Node tests. Preserve this pattern unless deliberately changing the loading architecture; content scripts are not loaded as ES modules.
+The shared modules expose the existing `NanitActivity*` globals. `core.js`, `audio.js`, `preferences.js`, and `alerts.js` also export through CommonJS for Node tests. Preserve this pattern unless deliberately changing the loading architecture; content scripts are not loaded as ES modules.
 
 `view.js` mounts an open Shadow DOM dashboard and discovers the page's video. Frames are watched with `requestVideoFrameCallback`, with a media-time polling fallback. Rendering and activity analysis use the existing video; audio remains on that original media element. The selected tracking area is sampled at 160×90 pixels, at up to five samples per second.
 
@@ -100,6 +102,7 @@ Live data uses `chrome.storage.local`; demo data uses `localStorage`. Do not ren
 - Source replacement or changed camera dimensions invalidates the tracking area and dependent framing. Missing observations must remain gaps rather than being interpolated into activity or quiet time.
 - Refresh restores settings and history but starts a fresh observation session and calibration. Session counters and the current quiet timer reset.
 - Sound preference can survive refresh even when Chrome requires a click before audible playback. Preserve **Enable sound** handling. Native fullscreen also requires user activation; saved expanded viewing restores within the tab.
+- Quiet reminders default to off with a two-minute duration and chime enabled. Their preferences persist, but elapsed time and dismissal state do not. Only continuous fresh `quiet` samples advance the timer; hidden tabs, missing/unclear frames, tracking changes, and pauses reset it. A dismissed reminder rearms after detected movement. Chime audio must be armed from a user click after refresh; it is separate from the source player's audio.
 
 ## Verification workflow
 
@@ -120,6 +123,7 @@ Use the generated demo first for browser checks relevant to the change:
 4. Check pause/resume, minimizing, and expanded viewing when those paths change.
 5. Use lighting changes, interrupted frames, and source replacement to check unknown states, gaps, and recalibration.
 6. Check manual notes and CSV export when changing the log.
+7. For reminder changes, verify the test button, one alert per quiet stretch, dismissal/rearming, reset after interruptions, and preference restoration. Use a short selectable duration in the demo, then restore the intended duration. Test the banner in minimized and fullscreen views. Do not interpret quiet reminders as sleep, breathing, or safety detection.
 
 The generated feed has no nursery audio. Unit tests can verify media state changes, but they do not establish audible speaker output. Live sound checks require the real player; distinguish observed mute/play state from sound independently heard.
 

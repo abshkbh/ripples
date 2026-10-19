@@ -30,7 +30,15 @@
     return state(media);
   }
 
-  const api = { state, setSound };
+  function restorePreference(media, enabled) {
+    // Restoring a preference is not a user gesture. Unmuting here can make
+    // Chrome pause the live player and report an autoplay error, even if caught.
+    if (state(media).available && enabled === false) media.muted = true;
+    const current = state(media);
+    return { ...current, needsClick: enabled === true && !current.enabled };
+  }
+
+  const api = { state, setSound, restorePreference };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else scope.NanitActivityAudio = api;
 })(globalThis);

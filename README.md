@@ -21,6 +21,17 @@ Ripples reuses the video already playing in Nanit's web app. Nanit still deliver
 - **Automatic log:** session starts, movement starts and settling, settings changes, pauses, and video interruptions. Add your own notes and export CSV. It does not claim to recognize caregivers, pickups, or put-downs.
 - **Viewing controls:** rotate in 90° steps, zoom 1–4×, drag to pan, select a tracking region, focus on that region, reset, and fullscreen (with an expanded in-tab fallback). Escape or **Exit expanded view** returns to the dashboard. Focus, pan, rotation, zoom, the timeline range, expanded/minimized viewing, sensitivity, and the tracking pause state persist across refreshes. The focus and tracking area map correctly through rotation and zoom.
 - **Live sound:** the Sound button unmutes or mutes the original Nanit player; it creates no second stream and does not capture or record audio. It reflects the player's current mute/play state and reports playback failures. The sound choice is remembered; **Enable sound** appears if the browser requires a click to restore it.
+- **Quiet reminder:** an optional on-screen message and chime after a continuous stretch of little observed movement. The default duration is two minutes and is adjustable. It counts fresh observations only, and does not assess breathing or wellbeing.
+
+## Quiet reminders
+
+In **Quiet reminder**, choose a duration and click **Turn on**. The default is **2 minutes**, with options from 30 seconds to 15 minutes. Click **Test reminder** to check the message and chime. The chime is separate from the live player's sound control, so muting the feed does not mute an enabled reminder chime.
+
+One reminder is shown and logged per continuous quiet stretch. **Dismiss** closes the message; detected movement rearms the next reminder. The message also appears over the original page when Ripples is minimized, and within the viewer in fullscreen. The test button produces a clearly labeled test and a separate log entry.
+
+The enable state, duration, and chime choice are saved locally. The elapsed timer and dismissal state start fresh after refresh. Click **Enable chime** or **Test reminder** after a refresh if sound needs user activation under Chrome's [autoplay policy](https://developer.chrome.com/blog/autoplay/).
+
+**Keep the Nanit tab visible and playing.** Pausing, hiding the tab, missing frames, low-detail images, or changing the tracking area restarts the timer. A closed tab, sleeping computer, or unavailable feed cannot produce a quiet reminder. The timer does not fill gaps with assumed stillness. A quiet scene can also be a frozen camera image, so this feature is a convenience reminder, not a breathing or safety monitor.
 
 ## Install locally
 
@@ -40,11 +51,11 @@ For an update, use **Reload** on this existing extension in Chrome's Extensions 
 
 ## What happens on refresh
 
-The extension uses `chrome.storage.local` in the current Chrome profile. It keeps at most 250 event/note entries from the past 24 hours and 2 hours of timestamped movement scores. Preferences have a dedicated key, written immediately when a setting changes: tracking region, camera dimensions, rotation, zoom, Focus, pan, timeline range, sensitivity, tracking pause, minimized/expanded viewing, and sound choice. Existing history and older preferences migrate automatically. Raw video and audio are not stored by the extension.
+The extension uses `chrome.storage.local` in the current Chrome profile. It keeps at most 250 event/note entries from the past 24 hours and 2 hours of timestamped movement scores. Preferences have a dedicated key, written immediately when a setting changes: tracking region, camera dimensions, rotation, zoom, Focus, pan, timeline range, sensitivity, tracking pause, minimized/expanded viewing, sound choice, and quiet reminder enable/duration/chime settings. Existing history and older preferences migrate automatically. Raw video and audio are not stored by the extension.
 
 Refreshing reloads that history and those settings, starts a new observation session, and recalibrates for about three seconds when tracking is enabled. The current quiet timer and session burst count reset. Paused tracking stays paused; a minimized dashboard stays minimized. Pan is saved as a fraction of the viewport so it remains meaningful after a window resize. A different video source or changed camera dimensions clear the tracking region and its dependent framing. No observations are made while the Nanit tab is closed or reloading. History writes are delayed by about 1.5 seconds, so the newest activity samples or events can be lost during an immediate refresh. Preference writes do not use that delay.
 
-The saved sound choice is applied when the video becomes ready. Browser [autoplay rules](https://developer.chrome.com/blog/autoplay/) can require a click to restore sound; the UI shows **Enable sound** when that happens and keeps the video available. The preference remains saved. Expanded viewing restores inside the tab; entering native browser fullscreen requires a click.
+The saved sound choice is restored when the video becomes ready. If sound was on but the new player is muted or paused, the UI shows **Enable sound** and waits for a click instead of attempting an automatic unmute that Chrome's [autoplay rules](https://developer.chrome.com/blog/autoplay/) can reject. The preference remains saved and an already audible player is left running. Expanded viewing restores inside the tab; entering native browser fullscreen requires a click.
 
 ## Local preview and tests
 

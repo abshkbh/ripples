@@ -8,6 +8,7 @@ test('a saved and reloaded view preserves Focus, pan, every setting, and the ren
     region: { x: 0.2, y: 0.1, w: 0.4, h: 0.6 }, dimensions: [1920, 1080],
     rotation: 270, zoom: 2.25, focused: true, pan: { x: -0.13, y: 0.08 },
     sensitivity: 'low', windowMinutes: 120, paused: true, closed: false, expanded: true, soundEnabled: true,
+    quietAlertEnabled: true, quietAlertSeconds: 120, quietAlertSound: true,
   };
   const restored = normalize(JSON.parse(JSON.stringify(snapshot(settings))));
   assert.deepEqual(restored, settings);
@@ -22,6 +23,7 @@ test('older preferences migrate without losing the existing region, rotation, zo
   for (const key of Object.keys(previous)) assert.deepEqual(restored[key], previous[key]);
   assert.equal(restored.focused, false); assert.deepEqual(restored.pan, { x: 0, y: 0 });
   assert.equal(restored.windowMinutes, 15); assert.equal(restored.soundEnabled, null);
+  assert.equal(restored.quietAlertEnabled, false); assert.equal(restored.quietAlertSeconds, 120); assert.equal(restored.quietAlertSound, true);
 });
 
 test('invalid or missing settings cannot restore an unusable crop or nonfinite pan', () => {
@@ -46,4 +48,12 @@ test('serialized preferences are independent of later gestures', () => {
   const saved = snapshot(original);
   original.pan.x = 0.8; original.region.x = 0.4; original.dimensions[0] = 1280;
   assert.equal(saved.pan.x, 0.2); assert.equal(saved.region.x, 0.1); assert.equal(saved.dimensions[0], 1920);
+});
+
+test('reminder preferences survive serialization and reject invalid enable or duration values', () => {
+  const saved = normalize({ quietAlertEnabled: true, quietAlertSeconds: 600, quietAlertSound: false });
+  const restored = normalize(JSON.parse(JSON.stringify(saved)));
+  assert.equal(restored.quietAlertEnabled, true); assert.equal(restored.quietAlertSeconds, 600); assert.equal(restored.quietAlertSound, false);
+  const invalid = normalize({ quietAlertEnabled: 'true', quietAlertSeconds: 0, quietAlertSound: false });
+  assert.equal(invalid.quietAlertEnabled, false); assert.equal(invalid.quietAlertSeconds, 120);
 });
